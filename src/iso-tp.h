@@ -8,6 +8,8 @@
 
 #define FILL_CHAR 0xAA  //unused bytes in frames will be filled with this value.
 
+//#define ISOTP_SEP_OVERRIDE 280
+
 typedef enum
 {
     ISOTP_IDLE = 0,
@@ -37,10 +39,10 @@ typedef enum
 #define ISOTP_FC_OVFLW  2 /* overflow */
 
 /* Timeout values */
-#define TIMEOUT_SESSION  500 /* Timeout between successfull send and receive */
-#define TIMEOUT_FC       250 /* Timeout between FF and FC or Block CF and FC */
-#define TIMEOUT_CF       250 /* Timeout between CFs                          */
-#define MAX_FCWAIT_FRAME  10
+#define TIMEOUT_SESSION  500000 /* Timeout between successfull send and receive */
+#define TIMEOUT_FC       250000 /* Timeout between FF and FC or Block CF and FC */
+#define TIMEOUT_CF       250000 /* Timeout between CFs                          */
+#define MAX_FCWAIT_FRAME  10000
 
 
 /* Received Message Buffer. An ISOTP frame
@@ -51,7 +53,7 @@ and the type of ISO-TP frames you need. 128
 is large enough unless you're going to do firmware
 uploads or some other large message task.
 */
-#define MAX_MSGBUF 128
+#define MAX_MSGBUF 4096
 
 struct Message_t
 {
@@ -60,10 +62,11 @@ struct Message_t
     uint16_t seq_id=1;
     uint8_t fc_status=ISOTP_FC_CTS;
     uint8_t blocksize=0;
-    uint8_t min_sep_time=0;
+    uint32_t min_sep_time=0;
     uint32_t tx_id=0;
     uint32_t rx_id=0;
     uint8_t *Buffer;
+    uint8_t* bufPtr;
 };
 
 class IsoTp
@@ -91,7 +94,7 @@ private:
     uint8_t  rcv_ff(struct Message_t* msg);
     uint8_t  rcv_cf(struct Message_t* msg);
     uint8_t  rcv_fc(struct Message_t* msg);
-    void     fc_delay(uint8_t sep_time);
+    void     fc_delay(uint32_t sep_time);
 };
 
 #endif
