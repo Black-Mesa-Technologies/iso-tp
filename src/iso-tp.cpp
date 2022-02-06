@@ -1,28 +1,29 @@
 #include "Arduino.h"
-#include "iso-tp.h"
-#include <can_common.h>
+#include "iso_tp.h"
+#include <FlexCAN_T4.h>
+//#include <can_common.h>
 
-IsoTp::IsoTp(CAN_COMMON* bus)
+IsoTp::IsoTp(FlexCAN_T4_Base* bus)
 {
     _bus = bus;
 }
 
-void IsoTp::print_buffer(uint32_t id, uint8_t *buffer, uint16_t len)
+void IsoTp::print_buffer(uint32_t id, uint8_t* buffer, uint16_t len)
 {
-    uint16_t i=0;
+    uint16_t i = 0;
 
     Serial.print(F("Buffer: "));
-    Serial.print(id,HEX);
+    Serial.print(id, HEX);
     Serial.print(F(" ["));
     Serial.print(len);
     Serial.print(F("] "));
-    for(i=0; i<len; i++)
+    for (i = 0; i < len; i++)
     {
-        if(buffer[i] < 0x10)
+        if (buffer[i] < 0x10)
         {
             Serial.print(F("0"));
         }
-        Serial.print(buffer[i],HEX);
+        Serial.print(buffer[i], HEX);
         Serial.print(F(" "));
     }
     Serial.println();
@@ -30,17 +31,18 @@ void IsoTp::print_buffer(uint32_t id, uint8_t *buffer, uint16_t len)
 
 uint8_t IsoTp::send(Message_t* msg)
 {
-    uint8_t bs=false;
-    uint32_t delta=0;
-    uint8_t retval=0;
+    uint8_t bs = false;
+    uint32_t delta = 0;
+    uint8_t retval = 0;
     if (!msg->bufPtr && msg->Buffer)
         msg->bufPtr = msg->Buffer;
+    
 
-    msg->tp_state=ISOTP_SEND;
+    msg->tp_state = ISOTP_SEND;
 
-    while(msg->tp_state!=ISOTP_IDLE && msg->tp_state!=ISOTP_ERROR)
+    while (msg->tp_state != ISOTP_IDLE && msg->tp_state != ISOTP_ERROR)
     {
-        bs=false;
+        bs = false;
 
 #ifdef ISO_TP_DEBUG
         Serial.print(F("ISO-TP State: "));
@@ -49,18 +51,18 @@ uint8_t IsoTp::send(Message_t* msg)
         Serial.println(msg->len);
 #endif
 
-        switch(msg->tp_state)
+        switch (msg->tp_state)
         {
-        case ISOTP_IDLE         :
+        case ISOTP_IDLE:
             break;
-        case ISOTP_SEND         :
-            if(msg->len<=7)
+        case ISOTP_SEND:
+            if (msg->len <= 7)
             {
 #ifdef ISO_TP_DEBUG
                 Serial.println(F("Send SF"));
 #endif
-                retval=send_sf(msg);
-                msg->tp_state=ISOTP_IDLE;
+                retval = send_sf(msg);
+                msg->tp_state = ISOTP_IDLE;
                 msg->Buffer = msg->bufPtr;
             }
             else
@@ -68,13 +70,13 @@ uint8_t IsoTp::send(Message_t* msg)
 #ifdef ISO_TP_DEBUG
                 Serial.println(F("Send FF"));
 #endif
-                if((retval=send_ff(msg)))   // FF complete
+                if ((retval = send_ff(msg)))   // FF complete
                 {
-                    msg->Buffer+=6;
-                    msg->len-=6;
-                    msg->tp_state=ISOTP_WAIT_FIRST_FC;
-                    fc_wait_frames=0;
-                    wait_fc=micros();
+                    msg->Buffer += 6;
+                    msg->len -= 6;
+                    msg->tp_state = ISOTP_WAIT_FIRST_FC;
+                    fc_wait_frames = 0;
+                    wait_fc = micros();
                 }
             }
             break;
@@ -82,8 +84,8 @@ uint8_t IsoTp::send(Message_t* msg)
 #ifdef ISO_TP_DEBUG
             Serial.println(F("Wait first FC"));
 #endif
-            delta=micros()-wait_fc;
-            if(delta >= TIMEOUT_FC)
+            delta = micros() - wait_fc;
+            if (delta >= TIMEOUT_FC)
             {
 #ifdef ISO_TP_DEBUG
                 Serial.print(F("FC timeout during receive"));
@@ -93,38 +95,38 @@ uint8_t IsoTp::send(Message_t* msg)
                 Serial.println(delta);
 #endif
                 msg->tp_state = ISOTP_IDLE;
-                retval=1;
+                retval = 1;
             }
             break;
-        case ISOTP_WAIT_FC      :
+        case ISOTP_WAIT_FC:
 #ifdef ISO_TP_DEBUG
             Serial.println(F("Wait FC"));
 #endif
             break;
-        case ISOTP_SEND_CF      :
+        case ISOTP_SEND_CF:
 #ifdef ISO_TP_DEBUG
             Serial.println(F("Send CF"));
 #endif
-            while(msg->len>7 & !bs)
+            while (msg->len > 7 && !bs)
             {
                 fc_delay(msg->min_sep_time);
-                if((retval=send_cf(msg)))
+                if ((retval = send_cf(msg)))
                 {
 #ifdef ISO_TP_DEBUG
                     Serial.print(F("Send Seq "));
                     Serial.println(msg->seq_id);
 #endif
-                    if(msg->blocksize > 0)
+                    if (msg->blocksize > 0)
                     {
 #ifdef ISO_TP_DEBUG
                         Serial.print(F("Blocksize trigger "));
                         Serial.print(msg->seq_id %
-                                     msg->blocksize);
+                            msg->blocksize);
 #endif
-                        if(!(msg->seq_id % msg->blocksize))
+                        if (!(msg->seq_id % msg->blocksize))
                         {
-                            bs=true;
-                            msg->tp_state=ISOTP_WAIT_FC;
+                            bs = true;
+                            msg->tp_state = ISOTP_WAIT_FC;
 #ifdef ISO_TP_DEBUG
                             Serial.println(F(" yes"));
 #endif
@@ -145,43 +147,43 @@ uint8_t IsoTp::send(Message_t* msg)
                     {
                         msg->seq_id %= msg->blocksize;
                     }
-                    msg->Buffer+=7;
-                    msg->len-=7;
+                    msg->Buffer += 7;
+                    msg->len -= 7;
 #ifdef ISO_TP_DEBUG
                     Serial.print(F("Length      : "));
                     Serial.println(msg->len);
 #endif
                 }
             }
-            if(!bs)
+            if (!bs)
             {
                 fc_delay(msg->min_sep_time);
 #ifdef ISO_TP_DEBUG
                 Serial.print(F("Send last Seq "));
                 Serial.println(msg->seq_id);
 #endif
-                retval=send_cf(msg);
-                msg->tp_state=ISOTP_IDLE;
+                retval = send_cf(msg);
+                msg->tp_state = ISOTP_IDLE;
                 msg->Buffer = msg->bufPtr;
             }
             break;
-        default                 :
+        default:
             break;
         }
 
 
-        if(msg->tp_state==ISOTP_WAIT_FIRST_FC ||
-                msg->tp_state==ISOTP_WAIT_FC)
+        if (msg->tp_state == ISOTP_WAIT_FIRST_FC ||
+            msg->tp_state == ISOTP_WAIT_FC)
         {
-            if(can_receive())
+            if (can_receive())
             {
 #ifdef ISO_TP_DEBUG
                 Serial.println(F("Send branch:"));
 #endif
-                if(rcvFrame.id == msg->rx_id)
+                if (rcvFrame.id == msg->rx_id)
                 {
-                    retval=rcv_fc(msg);
-                    memset(rcvFrame.data.bytes,0,sizeof(rcvFrame.data.value));
+                    retval = rcv_fc(msg);
+                    memset(rcvFrame.buf, 0, sizeof(rcvFrame.buf));
 #ifdef ISO_TP_DEBUG
                     Serial.println(F("rxId OK!"));
 #endif
@@ -195,22 +197,23 @@ uint8_t IsoTp::send(Message_t* msg)
 
 uint8_t IsoTp::receive(Message_t* msg)
 {
-    uint8_t n_pci_type=0;
-    uint32_t delta=0;
+    uint8_t n_pci_type = 0;
+    uint32_t delta = 0;
+    
     if (!msg->bufPtr && msg->Buffer)
         msg->bufPtr = msg->Buffer;
     msg->Buffer = msg->bufPtr;
 
-    wait_session=micros();
+    wait_session = micros();
 #ifdef ISO_TP_DEBUG
     Serial.println(F("Start receive..."));
 #endif
-    msg->tp_state=ISOTP_IDLE;
+    msg->tp_state = ISOTP_IDLE;
 
-    while(msg->tp_state!=ISOTP_FINISHED && msg->tp_state!=ISOTP_ERROR)
+    while (msg->tp_state != ISOTP_FINISHED && msg->tp_state != ISOTP_ERROR)
     {
-        delta=micros()-wait_session;
-        if(delta >= TIMEOUT_SESSION)
+        delta = micros() - wait_session;
+        if (delta >= TIMEOUT_SESSION)
         {
 #ifdef ISO_TP_DEBUG
             Serial.print(F("ISO-TP Session timeout wait_session="));
@@ -221,14 +224,14 @@ uint8_t IsoTp::receive(Message_t* msg)
             return 1;
         }
 
-        if(can_receive())
+        if (can_receive())
         {
-            if(rcvFrame.id == msg->rx_id)
+            if (rcvFrame.id == msg->rx_id)
             {
 #ifdef ISO_TP_DEBUG
                 Serial.println(F("rxId OK!"));
 #endif
-                n_pci_type = rcvFrame.data.byte[0] & 0xF0;
+                n_pci_type = rcvFrame.buf[0] & 0xF0;
 
                 switch (n_pci_type)
                 {
@@ -246,7 +249,7 @@ uint8_t IsoTp::receive(Message_t* msg)
 #endif
                     /* rx path: single frame */
                     rcv_sf(msg);
-//		      msg->tp_state=ISOTP_FINISHED;
+                    //		      msg->tp_state=ISOTP_FINISHED;
                     break;
 
                 case N_PCI_FF:
@@ -255,7 +258,7 @@ uint8_t IsoTp::receive(Message_t* msg)
 #endif
                     /* rx path: first frame */
                     rcv_ff(msg);
-//		      msg->tp_state=ISOTP_WAIT_DATA;
+                    //		      msg->tp_state=ISOTP_WAIT_DATA;
                     break;
                     break;
 
@@ -267,7 +270,7 @@ uint8_t IsoTp::receive(Message_t* msg)
                     rcv_cf(msg);
                     break;
                 }
-                memset(rcvFrame.data.bytes,0,sizeof(rcvFrame.data.value));
+                memset(rcvFrame.buf, 0, sizeof(rcvFrame.buf));
             }
         }
     }
@@ -279,31 +282,31 @@ uint8_t IsoTp::receive(Message_t* msg)
     return 0;
 }
 
-uint8_t IsoTp::can_send(uint32_t id, uint8_t len, uint8_t *data)
+uint8_t IsoTp::can_send(uint32_t id, uint8_t len, uint8_t* data)
 {
 #ifdef ISO_TP_DEBUG
     Serial.println(F("Send CAN RAW Data:"));
     print_buffer(id, data, len);
 #endif
-    CAN_FRAME frame;
+    CAN_message_t frame;
     frame.id = id;
-    frame.rtr = 0;
-    frame.extended = false;
-    frame.length = len;
-    memset(&frame.data.value,FILL_CHAR,8);
+    frame.flags.remote = 0;
+    frame.flags.extended = false;
+    frame.len = len;
+    memset(&frame.buf[0], FILL_CHAR, 8);
     for (int x = 0; x < len; x++)
     {
-        frame.data.byte[x] = data[x];
+        frame.buf[x] = data[x];
     }
-    return _bus->sendFrame(frame);
+    return _bus->write(frame);
 }
 
 uint8_t IsoTp::can_receive(void)
 {
-    if (_bus->rx_avail() > 0)
+    if (_bus->read(rcvFrame))
     {
-        memset(&rcvFrame.data.value,FILL_CHAR,8);
-        _bus->read(rcvFrame);
+        //memset(&rcvFrame.buf[0], FILL_CHAR, 8);
+        //_bus->read(rcvFrame);
 #ifdef ISO_TP_DEBUG
         Serial.println(F("Received CAN RAW Data:"));
         print_buffer(rcvFrame.id, rcvFrame.data.bytes, rcvFrame.length);
@@ -316,13 +319,18 @@ uint8_t IsoTp::can_receive(void)
     }
 }
 
-uint8_t IsoTp::send_fc(struct Message_t *msg)
+uint8_t IsoTp::send_fc(struct Message_t* msg)
 {
-    uint8_t TxBuf[8]= {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+    uint8_t TxBuf[8] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
     // FC message high nibble = 0x3 , low nibble = FC Status
-    TxBuf[0]=(N_PCI_FC | msg->fc_status);
-    TxBuf[1]=msg->blocksize;
+    TxBuf[0] = (N_PCI_FC | msg->fc_status);
+    TxBuf[1] = msg->blocksize;
     /* fix wrong separation time values according spec */
+    /*if ((msg->min_sep_time > 0x7F) && ((msg->min_sep_time < 0xF1)
+        || (msg->min_sep_time > 0xF9)))
+    {
+        msg->min_sep_time = 0x7F;
+    }*/
     if (msg->min_sep_time < 150) {
         TxBuf[2] = 0xF1;
     }
@@ -355,48 +363,50 @@ uint8_t IsoTp::send_fc(struct Message_t *msg)
     } else {
         TxBuf[2] = msg->min_sep_time / 1000;
     }
-    return can_send(msg->tx_id,8,TxBuf);
+
+    
+    return can_send(msg->tx_id, 8, TxBuf);
 }
 
-uint8_t IsoTp::send_sf(struct Message_t *msg) //Send SF Message
+uint8_t IsoTp::send_sf(struct Message_t* msg) //Send SF Message
 {
-    uint8_t TxBuf[8]= {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+    uint8_t TxBuf[8] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
     // SF message high nibble = 0x0 , low nibble = Length
-    TxBuf[0]=(N_PCI_SF | msg->len);
-    memcpy(TxBuf+1,msg->Buffer,msg->len);
-//  return can_send(msg->tx_id,msg->len+1,TxBuf);// Add PCI length
-    return can_send(msg->tx_id,8,TxBuf);// Always send full frame
+    TxBuf[0] = (N_PCI_SF | msg->len);
+    memcpy(TxBuf + 1, msg->Buffer, msg->len);
+    //  return can_send(msg->tx_id,msg->len+1,TxBuf);// Add PCI length
+    return can_send(msg->tx_id, 8, TxBuf);// Always send full frame
 }
 
-uint8_t IsoTp::send_ff(struct Message_t *msg) // Send FF
+uint8_t IsoTp::send_ff(struct Message_t* msg) // Send FF
 {
-    uint8_t TxBuf[8]= {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
-    msg->seq_id=1;
+    uint8_t TxBuf[8] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
+    msg->seq_id = 1;
 
-    TxBuf[0]=(N_PCI_FF | ((msg->len&0x0F00) >> 8));
-    TxBuf[1]=(msg->len&0x00FF);
-    memcpy(TxBuf+2,msg->Buffer,6);             // Skip 2 Bytes PCI
-    return can_send(msg->tx_id,8,TxBuf);       // First Frame has full length
+    TxBuf[0] = (N_PCI_FF | ((msg->len & 0x0F00) >> 8));
+    TxBuf[1] = (msg->len & 0x00FF);
+    memcpy(TxBuf + 2, msg->Buffer, 6);             // Skip 2 Bytes PCI
+    return can_send(msg->tx_id, 8, TxBuf);       // First Frame has full length
 }
 
-uint8_t IsoTp::send_cf(struct Message_t *msg) // Send CF Message
+uint8_t IsoTp::send_cf(struct Message_t* msg) // Send CF Message
 {
-    uint8_t TxBuf[8]= {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
-    uint16_t len=7;
+    uint8_t TxBuf[8] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
+    uint16_t len = 7;
 
-    TxBuf[0]=(N_PCI_CF | (msg->seq_id & 0x0F));
-    if(msg->len>7)
+    TxBuf[0] = (N_PCI_CF | (msg->seq_id & 0x0F));
+    if (msg->len > 7)
     {
-        len=7;
+        len = 7;
     }
     else
     {
-        len=msg->len;
+        len = msg->len;
     }
-    memcpy(TxBuf+1,msg->Buffer,len);         // Skip 1 Byte PCI
+    memcpy(TxBuf + 1, msg->Buffer, len);         // Skip 1 Byte PCI
     //return can_send(msg->tx_id,len+1,TxBuf); // Last frame is probably shorter
     // than 8 -> Signals last CF Frame
-    return can_send(msg->tx_id,8,TxBuf);     // Last frame is probably shorter
+    return can_send(msg->tx_id, 8, TxBuf);     // Last frame is probably shorter
     // than 8, pad out to 8 bytes
 }
 
@@ -409,10 +419,10 @@ void IsoTp::fc_delay(uint32_t sep_time)
     * 0xFA - 0xFF: reserved
     * default 0x7F, 127ms
     */
-    /*if(sep_time <= 0x7F)
+    /*if (sep_time <= 0x7F)
         delay(sep_time);
     else if ((sep_time >= 0xF1) && (sep_time <= 0xF9))
-        delayMicroseconds((sep_time-0xF0)*100);
+        delayMicroseconds((sep_time - 0xF0) * 100);
     else
         delay(0x7F);*/
     delayMicroseconds(sep_time);
@@ -421,26 +431,26 @@ void IsoTp::fc_delay(uint32_t sep_time)
 uint8_t IsoTp::rcv_sf(struct Message_t* msg)
 {
     /* get the SF_DL from the N_PCI byte */
-    msg->len = rcvFrame.data.byte[0] & 0x0F;
+    msg->len = rcvFrame.buf[0] & 0x0F;
     /* copy the received data bytes */
-    memcpy(msg->Buffer, &rcvFrame.data.byte[1],msg->len); // Skip PCI, SF uses len bytes
-    msg->tp_state=ISOTP_FINISHED;
+    memcpy(msg->Buffer, &rcvFrame.buf[1], msg->len); // Skip PCI, SF uses len bytes
+    msg->tp_state = ISOTP_FINISHED;
 
     return 0;
 }
 
 uint8_t IsoTp::rcv_ff(struct Message_t* msg)
 {
-    msg->seq_id=1;
+    msg->seq_id = 1;
 
     /* get the FF_DL */
-    msg->len = (rcvFrame.data.byte[0] & 0x0F) << 8;
-    msg->len += rcvFrame.data.byte[1];
-    rest=msg->len;
+    msg->len = (rcvFrame.buf[0] & 0x0F) << 8;
+    msg->len += rcvFrame.buf[1];
+    rest = msg->len;
 
     /* copy the first received data bytes */
-    memcpy(msg->Buffer, &rcvFrame.data.byte[2],6); // Skip 2 bytes PCI, FF must have 6 bytes!
-    rest-=6; // Restlength
+    memcpy(msg->Buffer, &rcvFrame.buf[2], 6); // Skip 2 bytes PCI, FF must have 6 bytes!
+    rest -= 6; // Restlength
 
     msg->tp_state = ISOTP_WAIT_DATA;
 
@@ -454,10 +464,10 @@ uint8_t IsoTp::rcv_ff(struct Message_t* msg)
 
     /* send our first FC frame with Target Address*/
     struct Message_t fc;
-    fc.tx_id=msg->tx_id;
-    fc.fc_status=ISOTP_FC_CTS;
-    fc.blocksize=0;
-    fc.min_sep_time=0;
+    fc.tx_id = msg->tx_id;
+    fc.fc_status = ISOTP_FC_CTS;
+    fc.blocksize = 0;
+    fc.min_sep_time = 0;
     return send_fc(&fc);
 }
 
@@ -465,9 +475,9 @@ uint8_t IsoTp::rcv_cf(struct Message_t* msg)
 {
     //Handle Timeout
     //If no Frame within 250ms change State to ISOTP_IDLE
-    uint32_t delta=micros()-wait_cf;
+    uint32_t delta = micros() - wait_cf;
 
-    if((delta >= TIMEOUT_FC) && msg->seq_id>1)
+    if ((delta >= TIMEOUT_FC) && msg->seq_id > 1)
     {
 #ifdef ISO_TP_DEBUG
         Serial.println(F("CF frame timeout during receive wait_cf="));
@@ -478,7 +488,7 @@ uint8_t IsoTp::rcv_cf(struct Message_t* msg)
         msg->tp_state = ISOTP_IDLE;
         return 1;
     }
-    wait_cf=micros();
+    wait_cf = micros();
 
 #ifdef ISO_TP_DEBUG
     Serial.print(F("ISO-TP state: "));
@@ -492,7 +502,7 @@ uint8_t IsoTp::rcv_cf(struct Message_t* msg)
         return 0;
     }
 
-    if ((rcvFrame.data.byte[0] & 0x0F) != (msg->seq_id & 0x0F))
+    if ((rcvFrame.buf[0] & 0x0F) != (msg->seq_id & 0x0F))
     {
 #ifdef ISO_TP_DEBUG
         Serial.print(F("Got sequence ID: "));
@@ -505,10 +515,10 @@ uint8_t IsoTp::rcv_cf(struct Message_t* msg)
         return 1;
     }
 
-    if(rest<=7)   // Last Frame
+    if (rest <= 7)   // Last Frame
     {
-        memcpy(msg->Buffer+6+7*(msg->seq_id-1), &rcvFrame.data.byte[1], rest);// 6 Bytes in FF +7
-        msg->tp_state=ISOTP_FINISHED;                           // per CF skip PCI
+        memcpy(msg->Buffer + 6 + 7 * (msg->seq_id - 1), &rcvFrame.buf[1], rest);// 6 Bytes in FF +7
+        msg->tp_state = ISOTP_FINISHED;                           // per CF skip PCI
 #ifdef ISO_TP_DEBUG
         Serial.print(F("Last CF received with seq. ID: "));
         Serial.println(msg->seq_id);
@@ -520,9 +530,9 @@ uint8_t IsoTp::rcv_cf(struct Message_t* msg)
         Serial.print(F("CF received with seq. ID: "));
         Serial.println(msg->seq_id);
 #endif
-        memcpy(msg->Buffer+6+7*(msg->seq_id-1), &rcvFrame.data.byte[1],7); // 6 Bytes in FF +7
+        memcpy(msg->Buffer + 6 + 7 * (msg->seq_id - 1), &rcvFrame.buf[1], 7); // 6 Bytes in FF +7
         // per CF
-        rest-=7; // Got another 7 Bytes of Data;
+        rest -= 7; // Got another 7 Bytes of Data;
     }
 
     msg->seq_id++;
@@ -532,7 +542,7 @@ uint8_t IsoTp::rcv_cf(struct Message_t* msg)
 
 uint8_t IsoTp::rcv_fc(struct Message_t* msg)
 {
-    uint8_t retval=0;
+    uint8_t retval = 0;
 
     if (msg->tp_state != ISOTP_WAIT_FC && msg->tp_state != ISOTP_WAIT_FIRST_FC)
     {
@@ -542,50 +552,47 @@ uint8_t IsoTp::rcv_fc(struct Message_t* msg)
     /* get communication parameters only from the first FC frame */
     if (msg->tp_state == ISOTP_WAIT_FIRST_FC)
     {
-        msg->blocksize = rcvFrame.data.byte[1];
-        msg->min_sep_time = rcvFrame.data.byte[2];
+        msg->blocksize = rcvFrame.buf[1];
+        msg->min_sep_time = rcvFrame.buf[2];
 
         /* fix wrong separation time values according spec */
         if ((msg->min_sep_time > 0x7F) && ((msg->min_sep_time < 0xF1)
-                                           || (msg->min_sep_time > 0xF9)))
+            || (msg->min_sep_time > 0xF9)))
         {
             msg->min_sep_time = (msg->min_sep_time & 0xF) * 100;
         }
         else {
             msg->min_sep_time = msg->min_sep_time * 1000;
         }
-        if (msg->sep_override)
-        {
-            msg->min_sep_time = msg->sep_override;
-        }
-        
-      
+#ifdef ISOTP_SEP_OVERRIDE
+        msg->min_sep_time = ISOTP_SEP_OVERRIDE;
+#endif
     }
 
 #ifdef ISO_TP_DEBUG
     Serial.print(F("FC frame: FS "));
-    Serial.print(rcvFrame.data.byte[0]&0x0F);
+    Serial.print(rcvFrame.data.byte[0] & 0x0F);
     Serial.print(F(", Blocksize "));
     Serial.print(msg->blocksize);
     Serial.print(F(", Min. separation Time "));
     Serial.println(msg->min_sep_time);
 #endif
 
-    switch (rcvFrame.data.byte[0] & 0x0F)
+    switch (rcvFrame.buf[0] & 0x0F)
     {
     case ISOTP_FC_CTS:
         msg->tp_state = ISOTP_SEND_CF;
         break;
     case ISOTP_FC_WT:
         fc_wait_frames++;
-        if(fc_wait_frames >= MAX_FCWAIT_FRAME)
+        if (fc_wait_frames >= MAX_FCWAIT_FRAME)
         {
 #ifdef ISO_TP_DEBUG
             Serial.println(F("FC wait frames exceeded."));
 #endif
-            fc_wait_frames=0;
+            fc_wait_frames = 0;
             msg->tp_state = ISOTP_IDLE;
-            retval=1;
+            retval = 1;
         }
 #ifdef ISO_TP_DEBUG
         Serial.println(F("Start waiting for next FC"));
@@ -597,7 +604,7 @@ uint8_t IsoTp::rcv_fc(struct Message_t* msg)
 #endif
     default:
         msg->tp_state = ISOTP_IDLE;
-        retval=1;
+        retval = 1;
     }
     return retval;
 }

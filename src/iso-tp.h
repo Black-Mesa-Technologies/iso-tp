@@ -1,14 +1,20 @@
+// iso_tp.h
+
+#ifndef _ISO_TP_h
+#define _ISO_TP_h
+
 #ifndef _ISOTP_H
 #define _ISOTP_H
 
-#include <can_common.h>
+#include <FlexCAN_T4.h>
+//#include <can_common.h>
 
 //#define ISO_TP_DEBUG
 //#define Serial SerialUSB   //uncomment this line to redirect debugging traffic to SerialUSB
 
 #define FILL_CHAR 0xAA  //unused bytes in frames will be filled with this value.
 
-//#define ISOTP_SEP_OVERRIDE 280
+#define ISOTP_SEP_OVERRIDE 280
 
 typedef enum
 {
@@ -34,8 +40,8 @@ typedef enum
 #define FC_CONTENT_SZ 3 /* flow control content size in byte (FS/BS/STmin) */
 
 /* Flow Status given in FC frame */
-#define ISOTP_FC_CTS  0   /* clear to send */
-#define ISOTP_FC_WT 1     /* wait */
+#define ISOTP_FC_CTS    0   /* clear to send */
+#define ISOTP_FC_WT     1     /* wait */
 #define ISOTP_FC_OVFLW  2 /* overflow */
 
 /* Timeout values */
@@ -55,36 +61,38 @@ uploads or some other large message task.
 */
 #define MAX_MSGBUF 4096
 
+//static FlexCAN_T4_Base* _bus = nullptr;
+
 struct Message_t
 {
-    uint16_t len=0;
-    isotp_states_t tp_state=ISOTP_IDLE;
-    uint16_t seq_id=1;
-    uint8_t fc_status=ISOTP_FC_CTS;
-    uint8_t blocksize=0;
-    uint32_t min_sep_time=0;
-    uint32_t tx_id=0;
-    uint32_t rx_id=0;
-    uint8_t *Buffer;
+    uint16_t len = 0;
+    isotp_states_t tp_state = ISOTP_IDLE;
+    uint16_t seq_id = 1;
+    uint8_t fc_status = ISOTP_FC_CTS;
+    uint8_t blocksize = 0;
+    uint32_t min_sep_time = 0;
+    uint32_t tx_id = 0;
+    uint32_t rx_id = 0;
+    uint8_t* Buffer;
     uint8_t* bufPtr;
 };
 
 class IsoTp
 {
 public:
-    IsoTp(CAN_COMMON* bus);
+    IsoTp(FlexCAN_T4_Base* bus);
     uint8_t send(Message_t* msg);
     uint8_t receive(Message_t* msg);
-    void    print_buffer(uint32_t id, uint8_t *buffer, uint16_t len);
+    void    print_buffer(uint32_t id, uint8_t* buffer, uint16_t len);
 private:
-    CAN_COMMON* _bus;
-    CAN_FRAME rcvFrame;
+    FlexCAN_T4_Base* _bus;
+    CAN_message_t rcvFrame;
     uint16_t rest;
-    uint8_t  fc_wait_frames=0;
-    uint32_t wait_fc=0;
-    uint32_t wait_cf=0;
-    uint32_t wait_session=0;
-    uint8_t  can_send(uint32_t id, uint8_t len, uint8_t *data);
+    uint8_t  fc_wait_frames = 0;
+    uint32_t wait_fc = 0;
+    uint32_t wait_cf = 0;
+    uint32_t wait_session = 0;
+    uint8_t  can_send(uint32_t id, uint8_t len, uint8_t* data);
     uint8_t  can_receive(void);
     uint8_t  send_fc(struct Message_t* msg);
     uint8_t  send_sf(struct Message_t* msg);
@@ -98,3 +106,7 @@ private:
 };
 
 #endif
+
+
+#endif
+
