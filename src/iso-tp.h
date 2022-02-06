@@ -8,8 +8,6 @@
 
 #define FILL_CHAR 0xAA  //unused bytes in frames will be filled with this value.
 
-//#define ISOTP_SEP_OVERRIDE 280
-
 typedef enum
 {
     ISOTP_IDLE = 0,
@@ -58,6 +56,7 @@ uploads or some other large message task.
 struct Message_t
 {
     uint16_t len=0;
+    uint32_t sep_override=0;
     isotp_states_t tp_state=ISOTP_IDLE;
     uint16_t seq_id=1;
     uint8_t fc_status=ISOTP_FC_CTS;
